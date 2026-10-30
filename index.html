@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProWorkLog</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-900 text-gray-100 font-sans pb-12">
+    <div class="max-w-md mx-auto">
+        <!-- Viršutinė Dalis -->
+        <div class="bg-blue-950 text-white p-5 rounded-b-3xl shadow-lg mb-4 border-b border-blue-900">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-md">
+                    ⚡
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide leading-tight">WEEKLY WORK REPORT</h1>
+                    <p class="text-xs text-blue-300">ProWork Log · Darbo apskaita</p>
+                </div>
+            </div>
+
+            <!-- Kas pildo ir Kalba -->
+            <div class="grid grid-cols-3 gap-2 mb-3">
+                <div class="col-span-2">
+                    <label id="lblReporter" class="block text-[11px] text-blue-300 mb-1">Kas pildo ataskaitą</label>
+                    <input type="text" id="reporterInput" class="w-full bg-blue-900/80 border border-blue-700 rounded-xl px-3 py-1.5 text-sm text-white placeholder-blue-400 focus:outline-none focus:border-blue-400" placeholder="Team Evaldas">
+                </div>
+                <div>
+                    <label id="lblLang" class="block text-[11px] text-blue-300 mb-1">Kalba</label>
+                    <select id="langSelect" class="w-full bg-blue-900/80 border border-blue-700 rounded-xl px-2 py-1.5 text-sm text-white focus:outline-none">
+                        <option value="lt">Lietuvių</option>
+                        <option value="en">English</option>
+                        <option value="da">Dansk</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Metai ir Savaitė -->
+            <div class="grid grid-cols-2 gap-2 mb-3">
+                <div>
+                    <label id="lblYear" class="block text-[11px] text-blue-300 mb-1">Metai</label>
+                    <input type="number" id="yearInput" value="2026" class="w-full bg-blue-900/80 border border-blue-700 rounded-xl px-3 py-1.5 text-sm text-white text-center focus:outline-none">
+                </div>
+                <div>
+                    <label id="lblWeek" class="block text-[11px] text-blue-300 mb-1">Savaitė</label>
+                    <input type="number" id="weekInput" value="44" class="w-full bg-blue-900/80 border border-blue-700 rounded-xl px-3 py-1.5 text-sm text-white text-center focus:outline-none">
+                </div>
+            </div>
+
+            <h2 id="weekHeader" class="text-2xl font-extrabold text-blue-100 mt-2">44 savaitė</h2>
+        </div>
+
+        <div class="px-4">
+            <!-- Įspėjimas -->
+            <div class="bg-slate-800 rounded-2xl p-3 shadow-sm border border-slate-700 mb-4 text-center">
+                <p id="lblNotice" class="text-xs text-blue-200">Įrašai automatiškai išsaugomi šiame įrenginyje.</p>
+            </div>
+
+            <!-- Darbo Dienos Header -->
+            <h3 id="lblDaysTitle" class="text-xl font-bold text-white mb-3 px-1">Darbo dienos</h3>
+
+            <!-- Dienų sąrašas -->
+            <div id="daysContainer" class="space-y-3 mb-4"></div>
+
+            <!-- Bendra savaitės suma -->
+            <div class="bg-blue-950/80 border border-blue-800 rounded-2xl p-4 shadow-sm mb-4">
+                <div class="flex justify-between items-center">
+                    <span id="lblTotalManHours" class="text-xs font-bold text-blue-300">BENDRA SAVAITĖS ŽMOGUS-VAL.:</span>
+                    <span id="totalWeekManHours" class="text-lg font-extrabold text-white">0.0 val.</span>
+                </div>
+            </div>
+
+            <!-- Eksportavimo blokas -->
+            <div class="bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-700">
+                <h4 id="lblExportTitle" class="font-bold text-white mb-3">Eksportuoti ataskaitą</h4>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button id="saveBtn" class="bg-blue-600 text-white font-medium py-2.5 px-2 rounded-xl text-xs hover:bg-blue-500 transition shadow-sm">Išsaugoti dabar</button>
+                    <button id="loadBtn" class="bg-blue-950 text-blue-200 border border-blue-800 font-medium py-2.5 px-2 rounded-xl text-xs hover:bg-blue-900 transition">Įkelti išsaugotą</button>
+                    <button id="exportWord" class="bg-blue-700 text-white font-medium py-2.5 px-2 rounded-xl text-xs hover:bg-blue-600 transition flex items-center justify-center gap-1 shadow-sm"><i class="fa-file-word fa-regular"></i> Word (.doc)</button>
+                    <button id="exportExcel" class="bg-blue-950 text-blue-200 border border-blue-800 font-medium py-2.5 px-2 rounded-xl text-xs hover:bg-blue-900 transition flex items-center justify-center gap-1">Excel (.xlsx)</button>
+                </div>
+                <p id="lblExportDesc" class="text-[11px] text-slate-400 leading-tight">Duomenys lieka šiame įrenginyje ir šioje naršyklėje. Periodiškai eksportuok atsarginę kopiją.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const i18n = {
+            lt: {
+                reporter: "Kas pildo ataskaitą",
+                lang: "Kalba",
+                year: "Metai",
+                week: "Savaitė",
+                weekLabel: "savaitė",
+                notice: "Įrašai automatiškai išsaugomi šiame įrenginyje.",
+                daysTitle: "Darbo dienos",
+                totalManHours: "BENDRA SAVAITĖS ŽMOGUS-VAL.:",
+                exportTitle: "Eksportuoti ataskaitą",
+                saveBtn: "Išsaugoti dabar",
+                loadBtn: "Įkelti išsaugotą",
+                exportWord: "Word (.doc)",
+                exportExcel: "Excel (.xlsx)",
+                exportDesc: "Duomenys lieka šiame įrenginyje ir šioje naršyklėje. Periodiškai eksportuok atsarginę kopiją.",
+                objectLabel: "Objektas / adresas",
+                objectPlaceholder: "Pvz., Novo - Staircase 41",
+                workersLabel: "Darbuotojų sk.",
+                startLabel: "Pradžia",
+                endLabel: "Pabaiga",
+                workDoneLabel: "Atlikti darbai",
+                workDonePlaceholder: "Aprašyk, ką darei objekte",
+                addObjBtn: "Pridėti kitą objektą",
+                days: ["Pirmadienis", "Antradienis", "Trečiadienis", "Ketvirtadienis", "Penktadienis", "Šeštadienis", "Sekmadienis"],
+                savedAlert: "Išsaugota!",
+                loadedAlert: "Duomenys įkelti!"
+            },
+            en: {
+                reporter: "Report filled by",
+                lang: "Language",
+                year: "Year",
+                week: "Week",
+                weekLabel: "week",
+                notice: "Entries are automatically saved on this device.",
+                daysTitle: "Work days",
+                totalManHours: "TOTAL WEEK MAN-HOURS:",
+                exportTitle: "Export report",
+                saveBtn: "Save now",
+                loadBtn: "Load saved",
+                exportWord: "Word (.doc)",
+                exportExcel: "Excel (.xlsx)",
+                exportDesc: "Data stays on this device and browser. Periodically export a backup.",
+                objectLabel: "Project / Address",
+                objectPlaceholder: "e.g., Novo - Staircase 41",
+                workersLabel: "Workers",
+                startLabel: "Start",
+                endLabel: "End",
+                workDoneLabel: "Work done",
+                workDonePlaceholder: "Describe work done",
+                addObjBtn: "Add another object",
+                days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+                savedAlert: "Saved!",
+                loadedAlert: "Data loaded!"
+            },
+            da: {
+                reporter: "Udfyldt af",
+                lang: "Sprog",
+                year: "År",
+                week: "Uge",
+                weekLabel: "uge",
+                notice: "Poster gemmes automatisk på denne enhed.",
+                daysTitle: "Arbejdsdage",
+                totalManHours: "SAMLET UGE TIMER-PERSONER:",
+                exportTitle: "Eksporter rapport",
+                saveBtn: "Gem nu",
+                loadBtn: "Indlæs gemt",
+                exportWord: "Word (.doc)",
+                exportExcel: "Excel (.xlsx)",
+                exportDesc: "Data forbliver på denne enhed. Eksporter sikkerhedskopi jævnligt.",
+                objectLabel: "Projekt / Adresse",
+                objectPlaceholder: "f.eks., Novo - Staircase 41",
+                workersLabel: "Medarbejdere",
+                startLabel: "Start",
+                endLabel: "Slut",
+                workDoneLabel: "Udført arbejde",
+                workDonePlaceholder: "Beskriv udført arbejde",
+                addObjBtn: "Tilføj et objekt mere",
+                days: ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"],
+                savedAlert: "Gemt!",
+                loadedAlert: "Data indlæst!"
+            }
+        };
+
+        const daysNamesDefault = ["Pirmadienis", "Antradienis", "Trečiadienis", "Ketvirtadienis", "Penktadienis", "Šeštadienis", "Sekmadienis"];
+        
+        let appState = {
+            reporter: localStorage.getItem('pw_reporter') || 'Team Evaldas',
+            lang: localStorage.getItem('pw_lang') || 'lt',
+            year: 2026,
+            week: 44,
+            days: daysNamesDefault.map((d, idx) => ({
+                nameKey: idx,
+                expanded: false,
+                items: [{ object: '', workers: 3, start: '07:00', end: '16:00', workDone: '' }]
+            }))
+        };
+
+        const saved = localStorage.getItem('pw_app_data');
+        if (saved) {
+            try { appState = JSON.parse(saved); } catch(e){}
+        }
+
+        document.getElementById('reporterInput').value = appState.reporter;
+        document.getElementById('langSelect').value = appState.lang;
+        document.getElementById('yearInput').value = appState.year;
+        document.getElementById('weekInput').value = appState.week;
+
+        function saveState() {
+            appState.reporter = document.getElementById('reporterInput').value;
+            appState.lang = document.getElementById('langSelect').value;
+            appState.year = parseInt(document.getElementById('yearInput').value) || 2026;
+            appState.week = parseInt(document.getElementById('weekInput').value) || 1;
+            localStorage.setItem('pw_reporter', appState.reporter);
+            localStorage.setItem('pw_lang', appState.lang);
+            localStorage.setItem('pw_app_data', JSON.stringify(appState));
+        }
+
+        function getDayNumberOnly(week, year, dayIndex) {
+            const simple = new Date(year, 0, 1 + (week - 1) * 7);
+            const dow = simple.getDay();
+            const ISOweekStart = simple;
+            if (dow <= 4) {
+                ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+            } else {
+                ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+            }
+            ISOweekStart.setDate(ISOweekStart.getDate() + dayIndex);
+            return `${ISOweekStart.getDate()}.`;
+        }
+
+        function calculateHours(start, end) {
+            if (!start || !end) return 0;
+            const sParts = start.split(':').map(Number);
+            const eParts = end.split(':').map(Number);
+            if (sParts.length < 2 || eParts.length < 2) return 0;
+            let diff = (eParts[0] * 60 + eParts[1]) - (sParts[0] * 60 + sParts[1]);
+            return diff > 0 ? (diff / 60).toFixed(1) : 0;
+        }
+
+        function renderUI() {
+            const t = i18n[appState.lang] || i18n.lt;
+
+            document.getElementById('lblReporter').innerText = t.reporter;
+            document.getElementById('lblLang').innerText = t.lang;
+            document.getElementById('lblYear').innerText = t.year;
+            document.getElementById('lblWeek').innerText = t.week;
+            document.getElementById('weekHeader').innerText = `${appState.week} ${t.weekLabel}`;
+            document.getElementById('lblNotice').innerText = t.notice;
+            document.getElementById('lblDaysTitle').innerText = t.daysTitle;
+            document.getElementById('lblTotalManHours').innerText = t.totalManHours;
+            document.getElementById('lblExportTitle').innerText = t.exportTitle;
+            document.getElementById('saveBtn').innerText = t.saveBtn;
+            document.getElementById('loadBtn').innerText = t.loadBtn;
+            document.getElementById('exportWord').innerHTML = `<i class="fa-file-word fa-regular"></i> ${t.exportWord}`;
+            document.getElementById('exportExcel').innerText = t.exportExcel;
+            document.getElementById('lblExportDesc').innerText = t.exportDesc;
+
+            const container = document.getElementById('daysContainer');
+            container.innerHTML = '';
+
+            let totalWeekManHours = 0;
+
+            appState.days.forEach((day, dIdx) => {
+                let totalDayHours = 0;
+                let totalDayWorkers = 0;
+
+                day.items.forEach(item => {
+                    const hrs = parseFloat(calculateHours(item.start, item.end)) || 0;
+                    const workers = parseInt(item.workers) || 0;
+                    totalDayHours += hrs;
+                    totalDayWorkers += workers;
+                    totalWeekManHours += (hrs * workers);
+                });
+
+                const dayNum = getDayNumberOnly(appState.week, appState.year, dIdx);
+                const dayName = t.days[day.nameKey];
+
+                const card = document.createElement('div');
+                card.className = 'bg-slate-800 rounded-2xl shadow-sm border border-slate-700 overflow-hidden';
+
+                let headerHTML = `
+                    <div class="p-3.5 flex justify-between items-center cursor-pointer select-none bg-slate-800 hover:bg-slate-750" onclick="window.toggleDay(${dIdx})">
+                        <div>
+                            <span class="font-bold text-white text-base">${dayName}</span>
+                            <span class="text-xs font-semibold text-blue-400 ml-2">${dayNum}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            ${!day.expanded ? `
+                                <div class="flex items-center gap-1 bg-blue-950 text-blue-300 px-2 py-1 rounded-lg text-xs font-medium border border-blue-800">
+                                    <span>${totalDayWorkers || '-'} žm.</span>
+                                </div>
+                                <div class="flex items-center gap-1 bg-blue-950 text-blue-300 px-2 py-1 rounded-lg text-xs font-medium border border-blue-800">
+                                    <span>${totalDayHours || '-'} val.</span>
+                                </div>
+                            ` : ''}
+                            <button class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                                ${day.expanded ? '−' : '+'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                let bodyHTML = '';
+                if (day.expanded) {
+                    bodyHTML = `<div class="p-3.5 border-t border-slate-700 bg-slate-900/50 space-y-4">`;
+                    
+                    day.items.forEach((item, iIdx) => {
+                        bodyHTML += `
+                            <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-blue-300 mb-1">${t.objectLabel}</label>
+                                    <input type="text" value="${item.object}" oninput="window.updateItem(${dIdx}, ${iIdx}, 'object', this.value)" placeholder="${t.objectPlaceholder}" class="w-full text-xs p-2.5 bg-slate-900 text-white border border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-slate-500">
+                                </div>
+
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">${t.workersLabel}</label>
+                                        <input type="number" value="${item.workers}" oninput="window.updateItem(${dIdx}, ${iIdx}, 'workers', this.value)" class="w-full text-xs p-2 bg-slate-900 text-white border border-slate-700 rounded-lg text-center focus:outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">${t.startLabel}</label>
+                                        <input type="text" value="${item.start}" oninput="window.updateItem(${dIdx}, ${iIdx}, 'start', this.value)" class="w-full text-xs p-2 bg-slate-900 text-white border border-slate-700 rounded-lg text-center focus:outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">${t.endLabel}</label>
+                                        <input type="text" value="${item.end}" oninput="window.updateItem(${dIdx}, ${iIdx}, 'end', this.value)" class="w-full text-xs p-2 bg-slate-900 text-white border border-slate-700 rounded-lg text-center focus:outline-none">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-blue-300 mb-1">${t.workDoneLabel}</label>
+                                    <textarea rows="2" oninput="window.updateItem(${dIdx}, ${iIdx}, 'workDone', this.value)" placeholder="${t.workDonePlaceholder}" class="w-full text-xs p-2.5 bg-slate-900 text-white border border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-slate-500">${item.workDone}</textarea>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    bodyHTML += `
+                        <button onclick="window.addObject(${dIdx})" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-xl text-xs transition shadow-sm">
+                            ${t.addObjBtn}
+                        </button>
+                    </div>`;
+                }
+
+                card.innerHTML = headerHTML + bodyHTML;
+                container.appendChild(card);
+            });
+
+            document.getElementById('totalWeekManHours').innerText = totalWeekManHours.toFixed(1) + ' val.';
+        }
+
+        window.toggleDay = function(idx) {
+            appState.days[idx].expanded = !appState.days[idx].expanded;
+            renderUI();
+            saveState();
+        }
+
+        window.updateItem = function(dIdx, iIdx, field, val) {
+            appState.days[dIdx].items[iIdx][field] = val;
+            renderUI();
+            saveState();
+        }
+
+        window.addObject = function(dIdx) {
+            appState.days[dIdx].items.push({ object: '', workers: 1, start: '07:00', end: '16:00', workDone: '' });
+            renderUI();
+            saveState();
+        }
+
+        document.getElementById('reporterInput').addEventListener('input', saveState);
+        document.getElementById('langSelect').addEventListener('change', () => { saveState(); renderUI(); });
+        document.getElementById('yearInput').addEventListener('input', () => { saveState(); renderUI(); });
+        document.getElementById('weekInput').addEventListener('input', () => { saveState(); renderUI(); });
+
+        document.getElementById('saveBtn').addEventListener('click', () => { 
+            saveState(); 
+            alert(i18n[appState.lang].savedAlert); 
+        });
+        document.getElementById('loadBtn').addEventListener('click', () => { 
+            renderUI(); 
+            alert(i18n[appState.lang].loadedAlert); 
+        });
+
+        document.getElementById('exportExcel').addEventListener('click', () => {
+            const t = i18n[appState.lang];
+            const rows = [
+                ["WEEKLY WORK REPORT", `Savaitė: ${appState.week}`],
+                ["Kas pildo:", appState.reporter],
+                [],
+                ["Diena", "Objektas / Adresas", "Žmonės", "Pradžia", "Pabaiga", "Viso valandų", "Atlikti darbai"]
+            ];
+
+            appState.days.forEach((day, dIdx) => {
+                const dayNum = getDayNumberOnly(appState.week, appState.year, dIdx);
+                const dayName = t.days[day.nameKey];
+                day.items.forEach(item => {
+                    const hrs = calculateHours(item.start, item.end);
+                    rows.push([`${dayName} (${dayNum})`, item.object, item.workers, item.start, item.end, hrs, item.workDone]);
+                });
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            XLSX.utils.book_append_sheet(wb, ws, "Ataskaita");
+            XLSX.writeFile(wb, `ProWorkLog_W${appState.week}.xlsx`);
+        });
+
+        document.getElementById('exportWord').addEventListener('click', () => {
+            const t = i18n[appState.lang];
+            let rowsHtml = '';
+
+            appState.days.forEach((day, dIdx) => {
+                const dayNum = getDayNumberOnly(appState.week, appState.year, dIdx);
+                const dayName = t.days[day.nameKey];
+                day.items.forEach(i => {
+                    rowsHtml += `
+                        <tr>
+                            <td style="border:1px solid #ccc; padding:6px;">${dayName} (${dayNum})</td>
+                            <td style="border:1px solid #ccc; padding:6px;">${i.object || ''}</td>
+                            <td style="border:1px solid #ccc; padding:6px; text-align:center;">${i.workers}</td>
+                            <td style="border:1px solid #ccc; padding:6px; text-align:center;">${i.start}-${i.end}</td>
+                            <td style="border:1px solid #ccc; padding:6px; text-align:center;">${calculateHours(i.start, i.end)}</td>
+                            <td style="border:1px solid #ccc; padding:6px;">${i.workDone || ''}</td>
+                        </tr>
+                    `;
+                });
+            });
+
+            const content = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>Ataskaita</title></head>
+                <body style="font-family: Arial, sans-serif;">
+                    <h2>WEEKLY WORK REPORT - ${appState.week} savaitė</h2>
+                    <p><b>Kas pildo:</b> ${appState.reporter}</p>
+                    <table style="width:100%; border-collapse:collapse; margin-top:15px;">
+                        <thead>
+                            <tr style="background-color:#f2f2f2;">
+                                <th style="border:1px solid #ccc; padding:6px;">Diena</th>
+                                <th style="border:1px solid #ccc; padding:6px;">Objektas</th>
+                                <th style="border:1px solid #ccc; padding:6px;">Žm.</th>
+                                <th style="border:1px solid #ccc; padding:6px;">Laikas</th>
+                                <th style="border:1px solid #ccc; padding:6px;">Val.</th>
+                                <th style="border:1px solid #ccc; padding:6px;">Darbai</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </body>
+                </html>
+            `;
+
+            // Atidaroma naujame lange / skirtuke – „Safari“ tai leidžia iškart išsaugoti arba bendrinti kaip dokumentą
+            const win = window.open('', '_blank');
+            if (win) {
+                win.document.write(content);
+                win.document.close();
+                setTimeout(() => {
+                    win.print();
+                }, 500);
+            } else {
+                alert("Naršyklė užblokavo iššokantį langą (Pop-up). Leiskite iššokančius langus šiame puslapyje.");
+            }
+        });
+
+        renderUI();
+    </script>
+</body>
+</html>
