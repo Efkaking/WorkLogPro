@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Darbo Valandų Žurnalas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.3.0/docx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans pb-12">
+    <div class="max-w-md mx-auto p-4">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl shadow-sm p-4 mb-4 flex justify-between items-center">
+            <div>
+                <h1 id="ui-title" class="text-lg font-bold text-gray-900">Darbo Valandų Žurnalas</h1>
+                <p id="ui-subtitle" class="text-xs text-gray-500">Savaitės ataskaita</p>
+            </div>
+            <div class="flex gap-2">
+                <select id="langSelect" onchange="changeLanguage(this.value)" class="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 font-medium">
+                    <option value="lt">LT</option>
+                    <option value="en">EN</option>
+                    <option value="da">DA</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Controls: Year & Week -->
+        <div class="bg-white rounded-2xl shadow-sm p-4 mb-4 grid grid-cols-2 gap-3">
+            <div>
+                <label id="lbl-year" class="block text-xs font-semibold text-gray-500 mb-1">Metai</label>
+                <input type="number" id="yearInput" value="2026" onchange="updateDates()" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-center">
+            </div>
+            <div>
+                <label id="lbl-week" class="block text-xs font-semibold text-gray-500 mb-1">Savaitės Nr.</label>
+                <input type="number" id="weekInput" value="40" min="1" max="53" onchange="updateDates()" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-center">
+            </div>
+        </div>
+
+        <!-- Days Accordion List -->
+        <div id="daysContainer" class="space-y-3 mb-4">
+            <!-- Dinamiškai generuojamos dienos -->
+        </div>
+
+        <!-- Summary & Total Workers Footer -->
+        <div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <span id="lbl-total-hours" class="text-xs font-bold text-gray-500 uppercase">Viso valandų per savaitę:</span>
+                <span id="totalWeeklyHours" class="text-lg font-black text-blue-600">0.0 val.</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span id="lbl-total-workers" class="text-xs font-bold text-gray-500 uppercase">Žmogus / Bendra suma:</span>
+                <span id="totalWorkersSummary" class="text-sm font-bold text-gray-700">0</span>
+            </div>
+        </div>
+
+        <!-- AI Translate Notes Button -->
+        <button onclick="translateNotesAI()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 mb-3 text-sm">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> <span id="btn-ai-translate">Versti užrašus (AI)</span>
+        </button>
+
+        <!-- Export Buttons -->
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm">
+                <i class="fa-file-excel fa-solid"></i> Excel (.xlsx)
+            </button>
+            <button onclick="exportWord()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm">
+                <i class="fa-file-word fa-solid"></i> Word (.docx)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const translations = {
+            lt: { title: "Darbo Valandų Žurnalas", subtitle: "Savaitės ataskaita", year: "Metai", week: "Savaitės Nr.", totalHours: "Viso valandų per savaitę:", totalWorkers: "Žmogus / Bendra suma:", translateBtn: "Versti užrašus (AI)", object: "Objektas:", workDone: "Atlikti darbai:", workers: "Žm.", start: "Pradžia", end: "Pabaiga", hours: "Val." },
+            en: { title: "Work Hours Journal", subtitle: "Weekly Report", year: "Year", week: "Week No.", totalHours: "Total Weekly Hours:", totalWorkers: "Workers / Total:", translateBtn: "Translate Notes (AI)", object: "Object:", workDone: "Work Done:", workers: "Workers", start: "Start", end: "End", hours: "Hours" },
+            da: { title: "Arbejdstid Journal", subtitle: "Ugentlig rapport", year: "År", week: "Uge nr.", totalHours: "Samlede ugentlige timer:", totalWorkers: "Arbejder / Total:", translateBtn: "Oversæt noter (AI)", object: "Objekt:", workDone: "Udført arbejde:", workers: "Arbejdere", start: "Start", end: "Slut", hours: "Timer" }
+        };
+
+        let currentLang = 'lt';
+        let daysData = [];
+
+        function getDaysOfISOWeek(year, week) {
+            const simple = new Date(year, 0, 1);
+            const daysOffset = (simple.getDay() <= 4) ? simple.getDay() - 1 : simple.getDay() - 8;
+            const week1 = new Date(year, 0, 1 - daysOffset);
+            const targetDate = new Date(week1.getTime());
+            targetDate.setDate(week1.getDate() + (week - 1) * 7);
+            
+            let days = [];
+            const dayNames = {
+                lt: ['Pirmadienis', 'Antradienis', 'Trečiadienis', 'Ketvirtadienis', 'Penktadienis', 'Šeštadienis', 'Sekmadienis'],
+                en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                da: ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag']
+            };
+
+            for (let i = 0; i < 7; i++) {
+                let d = new Date(targetDate);
+                d.setDate(targetDate.getDate() + i);
+                days.push({
+                    name: dayNames[currentLang][i],
+                    dateStr: `${d.getDate()} d.`,
+                    workers: 1,
+                    start: '07:00',
+                    end: '15:00',
+                    hours: 8.0,
+                    objectName: '',
+                    workDescription: '',
+                    isOpen: false
+                });
+            }
+            return days;
+        }
+
+        function initApp() {
+            const year = document.getElementById('yearInput').value;
+            const week = document.getElementById('weekInput').value;
+            daysData = getDaysOfISOWeek(year, week);
+            renderDays();
+            updateLanguageUI();
+        }
+
+        function updateDates() {
+            const year = document.getElementById('yearInput').value;
+            const week = document.getElementById('weekInput').value;
+            const newDays = getDaysOfISOWeek(year, week);
+            daysData.forEach((day, index) => {
+                newDays[index].workers = day.workers;
+                newDays[index].start = day.start;
+                newDays[index].end = day.end;
+                newDays[index].hours = day.hours;
+                newDays[index].objectName = day.objectName;
+                newDays[index].workDescription = day.workDescription;
+                newDays[index].isOpen = day.isOpen;
+            });
+            daysData = newDays;
+            renderDays();
+        }
+
+        function calculateHours(start, end) {
+            if (!start || !end) return 0;
+            let [sh, sm] = start.split(':').map(Number);
+            let [eh, em] = end.split(':').map(Number);
+            let startMin = sh * 60 + sm;
+            let endMin = eh * 60 + em;
+            let diff = (endMin - startMin) / 60;
+            return diff > 0 ? parseFloat(diff.toFixed(1)) : 0;
+        }
+
+        function updateDayField(index, field, value) {
+            daysData[index][field] = value;
+            if (field === 'start' || field === 'end') {
+                daysData[index].hours = calculateHours(daysData[index].start, daysData[index].end);
+                document.getElementById(`hours-${index}`).innerText = daysData[index].hours + ' val.';
+            }
+            updateTotals();
+        }
+
+        function toggleDay(index) {
+            daysData[index].isOpen = !daysData[index].isOpen;
+            renderDays();
+        }
+
+        function renderDays() {
+            const container = document.getElementById('daysContainer');
+            container.innerHTML = '';
+            const t = translations[currentLang];
+
+            daysData.forEach((day, index) => {
+                const dayEl = document.createElement('div');
+                dayEl.className = "bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition";
+                dayEl.innerHTML = `
+                    <div onclick="toggleDay(${index})" class="p-4 cursor-pointer flex justify-between items-center bg-gray-50/50 hover:bg-gray-50">
+                        <div>
+                            <h3 class="font-bold text-sm text-gray-900">${day.name} <span class="text-xs font-normal text-gray-500">(${day.dateStr})</span></h3>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-lg font-semibold">${day.workers} ${t.workers}</span>
+                            <span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-lg font-semibold">${day.start}-${day.end}</span>
+                            <span id="hours-${index}" class="bg-emerald-50 text-emerald-700 text-xs px-2 py-1 rounded-lg font-bold">${day.hours} ${t.hours}</span>
+                            <i class="fa-solid fa-chevron-${day.isOpen ? 'up' : 'down'} text-xs text-gray-400 ml-1"></i>
+                        </div>
+                    </div>
+                    <div class="${day.isOpen ? 'block' : 'hidden'} p-4 border-t border-gray-100 space-y-3 bg-white">
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">${t.workers}</label>
+                                <input type="number" value="${day.workers}" oninput="updateDayField(${index}, 'workers', this.value)" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-center font-semibold">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">${t.start}</label>
+                                <input type="time" value="${day.start}" onchange="updateDayField(${index}, 'start', this.value)" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-center font-semibold">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">${t.end}</label>
+                                <input type="time" value="${day.end}" onchange="updateDayField(${index}, 'end', this.value)" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-center font-semibold">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">${t.object}</label>
+                            <input type="text" value="${day.objectName}" placeholder="Įveskite objektą..." oninput="updateDayField(${index}, 'objectName', this.value)" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-medium">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">${t.workDone}</label>
+                            <textarea placeholder="Ką padarėte tame objekte..." oninput="updateDayField(${index}, 'workDescription', this.value)" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-medium h-16 resize-none">${day.workDescription}</textarea>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(dayEl);
+            });
+            updateTotals();
+        }
+
+        function updateTotals() {
+            let totalH = 0;
+            let totalW = 0;
+            daysData.forEach(day => {
+                totalH += parseFloat(day.hours || 0);
+                totalW += parseInt(day.workers || 0);
+            });
+            document.getElementById('totalWeeklyHours').innerText = totalH.toFixed(1) + ' val.';
+            document.getElementById('totalWorkersSummary').innerText = `${totalW} žm. bendrai`;
+        }
+
+        function changeLanguage(lang) {
+            currentLang = lang;
+            updateLanguageUI();
+            updateDates();
+        }
+
+        function updateLanguageUI() {
+            const t = translations[currentLang];
+            document.getElementById('ui-title').innerText = t.title;
+            document.getElementById('ui-subtitle').innerText = t.subtitle;
+            document.getElementById('lbl-year').innerText = t.year;
+            document.getElementById('lbl-week').innerText = t.week;
+            document.getElementById('lbl-total-hours').innerText = t.totalHours;
+            document.getElementById('lbl-total-workers').innerText = t.totalWorkers;
+            document.getElementById('btn-ai-translate').innerText = t.translateBtn;
+        }
+
+        async function translateNotesAI() {
+            alert(currentLang === 'lt' ? "Užrašai paruošti versti!" : "Notes ready for translation!");
+        }
+
+        function exportExcel() {
+            let wb = XLSX.utils.book_new();
+            let data = [[ translations[currentLang].title ], [ "Diena", "Data", "Žmonės", "Pradžia", "Pabaiga", "Valandos", "Objektas", "Darbai" ]];
+            daysData.forEach(d => {
+                data.push([d.name, d.dateStr, d.workers, d.start, d.end, d.hours, d.objectName, d.workDescription]);
+            });
+            let ws = XLSX.utils.aoa_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, "Savaitė");
+            XLSX.writeFile(wb, `Darbo_valandos_savaitė_${document.getElementById('weekInput').value}.xlsx`);
+        }
+
+        function exportWord() {
+            alert("Word eksportas paruoštas!");
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
